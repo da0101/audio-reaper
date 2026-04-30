@@ -1,0 +1,34 @@
+#!/bin/bash
+# yta — download audio from a YouTube URL at 320 kbps
+# Usage: yta <url> [mp3|m4a|wav|flac]   (default: mp3)
+
+set -euo pipefail
+
+URL="${1:-}"
+FMT="${2:-mp3}"
+OUT_DIR="${HOME}/Downloads"
+
+if [[ -z "$URL" ]]; then
+  echo "Usage: yta <youtube-url> [mp3|m4a|wav|flac]"
+  echo "       yta https://youtu.be/..."
+  exit 1
+fi
+
+mkdir -p "$OUT_DIR"
+
+echo "  Downloading audio → ${OUT_DIR}"
+echo "  Format: ${FMT}  |  Quality: 320 kbps"
+echo
+
+yt-dlp \
+  --extract-audio \
+  --audio-format "$FMT" \
+  --audio-quality 320K \
+  --embed-thumbnail \
+  --embed-metadata \
+  --output "${OUT_DIR}/%(title)s.%(ext)s" \
+  --progress \
+  "$URL"
+
+echo
+echo "  Done. Saved to ${OUT_DIR}"

@@ -1,0 +1,35 @@
+#!/bin/bash
+# sca — download audio from a SoundCloud URL
+# Usage: sca <url> [mp3|m4a|wav|flac]   (default: mp3)
+# Note: SoundCloud caps at 128 kbps (free) or 256 kbps (Go+)
+
+set -euo pipefail
+
+URL="${1:-}"
+FMT="${2:-mp3}"
+OUT_DIR="${HOME}/Downloads"
+
+if [[ -z "$URL" ]]; then
+  echo "Usage: sca <soundcloud-url> [mp3|m4a|wav|flac]"
+  echo "       sca https://soundcloud.com/artist/track"
+  exit 1
+fi
+
+mkdir -p "$OUT_DIR"
+
+echo "  Downloading audio → ${OUT_DIR}"
+echo "  Format: ${FMT}  |  Quality: best available"
+echo
+
+yt-dlp \
+  --extract-audio \
+  --audio-format "$FMT" \
+  --audio-quality 0 \
+  --embed-thumbnail \
+  --embed-metadata \
+  --output "${OUT_DIR}/%(uploader)s - %(title)s.%(ext)s" \
+  --progress \
+  "$URL"
+
+echo
+echo "  Done. Saved to ${OUT_DIR}"

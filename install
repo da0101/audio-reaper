@@ -1,0 +1,38 @@
+#!/bin/bash
+set -euo pipefail
+
+PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BIN_DIR="${HOME}/.local/bin"
+
+# Install dependencies via Homebrew
+if ! command -v brew &>/dev/null; then
+  echo "Error: Homebrew not found. Install it first: https://brew.sh"
+  exit 1
+fi
+
+for pkg in yt-dlp ffmpeg; do
+  if ! command -v "$pkg" &>/dev/null; then
+    echo "Installing ${pkg}..."
+    brew install "$pkg"
+  else
+    echo "${pkg}: already installed"
+  fi
+done
+
+echo
+mkdir -p "$BIN_DIR"
+chmod +x "${PROJECT_DIR}/yta" "${PROJECT_DIR}/sca"
+ln -sfn "${PROJECT_DIR}/yta" "${BIN_DIR}/yta"
+ln -sfn "${PROJECT_DIR}/sca" "${BIN_DIR}/sca"
+
+echo "Installed yta -> ${PROJECT_DIR}/yta"
+echo "Installed sca -> ${PROJECT_DIR}/sca"
+echo
+if [[ ":${PATH}:" != *":${BIN_DIR}:"* ]]; then
+  echo "Add this to your shell profile if commands are not found:"
+  echo "  export PATH=\"${BIN_DIR}:\$PATH\""
+  echo
+fi
+echo "Try:"
+echo "  yta https://youtu.be/..."
+echo "  sca https://soundcloud.com/artist/track"
