@@ -4,37 +4,97 @@
 # Usage:
 #   reap <url>                       single URL
 #   reap <url1> <url2> ...           mixed list of YouTube + SoundCloud URLs
+#   reap "search query"              search YouTube and download
 #   reap urls.txt                    text file, one URL per line
-#   reap urls.txt --format flac      different format (mp3/m4a/wav/flac)
+#   reap --output ~/Music/beats      set download folder (persists)
+#   reap --format flac               set format (mp3/m4a/wav/flac)
 
 set -euo pipefail
 
+CONFIG_DIR="${HOME}/.config/audio-reaper"
+CONFIG_FILE="${CONFIG_DIR}/output_dir"
+DEFAULT_DIR="${HOME}/Downloads"
+
+# Read persisted output dir or fall back to default
+OUT_DIR="$DEFAULT_DIR"
+[[ -f "$CONFIG_FILE" ]] && OUT_DIR="$(cat "$CONFIG_FILE")"
+
 FMT="mp3"
 URLS=()
-OUT_DIR="${HOME}/Downloads"
+SEARCH_QUERIES=()
+
+# Refine a search query using Gemini AI (optional, needs GEMINI_API_KEY)
+gemini_refine() {
+  local query="$1"
+  [[ -z "${GEMINI_API_KEY:-}" ]] && { echo "$query"; return; }
+
+  local body
+  body=$(python3 -c "
+import json, sys
+prompt = 'The user wants to find a song. Their query: \"' + sys.argv[1] + '\"\\nReturn ONLY the artist name and song title in the format: Artist - Song Title\\nNo explanation, no quotes, just the artist and title.'
+print(json.dumps({'contents': [{'parts': [{'text': prompt}]}]}))
+" "$query" 2>/dev/null) || { echo "$query"; return; }
+
+  local response
+  response=$(curl -sf --max-time 10 \
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}" \
+    -H "Content-Type: application/json" \
+    -d "$body" 2>/dev/null) || { echo "$query"; return; }
+
+  local refined
+  refined=$(python3 -c "
+import json, sys
+data = json.loads(sys.argv[1])
+print(data['candidates'][0]['content']['parts'][0]['text'].strip())
+" "$response" 2>/dev/null) || { echo "$query"; return; }
+
+  [[ -n "$refined" ]] && echo "$refined" || echo "$query"
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --format|-F) FMT="$2"; shift 2 ;;
-    -*)          echo "Unknown option: $1"; exit 1 ;;
+    --format|-F)  FMT="$2"; shift 2 ;;
+    --output|-o)
+      OUT_DIR="$2"
+      mkdir -p "$CONFIG_DIR"
+      echo "$OUT_DIR" > "$CONFIG_FILE"
+      shift 2 ;;
+    -*)           echo "Unknown option: $1"; exit 1 ;;
     *)
       if [[ -f "$1" ]]; then
         while IFS= read -r line; do
           [[ -z "$line" || "$line" == \#* ]] && continue
           URLS+=("$line")
         done < "$1"
-      else
+      elif [[ "$1" == http* ]]; then
         URLS+=("$1")
+      else
+        SEARCH_QUERIES+=("$1")
       fi
       shift ;;
   esac
 done
 
-if [[ ${#URLS[@]} -eq 0 ]]; then
-  echo "Usage: reap <url> [url2 ...] [--format mp3|m4a|wav|flac]"
-  echo "       reap urls.txt [--format mp3|m4a|wav|flac]"
+if [[ ${#URLS[@]} -eq 0 && ${#SEARCH_QUERIES[@]} -eq 0 ]]; then
+  echo "Usage: reap <url|query> [--format mp3|m4a|wav|flac] [--output ~/path]"
+  echo "       reap \"michael jackson thriller\"   search and download"
+  echo "       reap urls.txt"
+  echo "       reap-reset              reset output folder to ~/Downloads"
+  echo
+  echo "  Current output: ${OUT_DIR}"
   exit 1
 fi
+
+# Process search queries
+for query in "${SEARCH_QUERIES[@]}"; do
+  refined=$(gemini_refine "$query")
+  if [[ "$refined" != "$query" ]]; then
+    echo "  Search: \"$query\" -> \"$refined\""
+  else
+    echo "  Search: \"$query\""
+  fi
+  URLS+=("ytsearch1:${refined}")
+done
 
 # Route URLs by source
 YT_URLS=()
@@ -42,7 +102,7 @@ SC_URLS=()
 OTHER_URLS=()
 
 for url in "${URLS[@]}"; do
-  if [[ "$url" =~ youtube\.com|youtu\.be ]]; then
+  if [[ "$url" =~ youtube\.com|youtu\.be|^ytsearch ]]; then
     YT_URLS+=("$url")
   elif [[ "$url" =~ soundcloud\.com ]]; then
     SC_URLS+=("$url")

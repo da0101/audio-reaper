@@ -21,20 +21,43 @@ done
 
 echo
 mkdir -p "$BIN_DIR"
-chmod +x "${PROJECT_DIR}/yta" "${PROJECT_DIR}/sca" "${PROJECT_DIR}/reap"
-ln -sfn "${PROJECT_DIR}/yta"  "${BIN_DIR}/yta"
-ln -sfn "${PROJECT_DIR}/sca"  "${BIN_DIR}/sca"
-ln -sfn "${PROJECT_DIR}/reap" "${BIN_DIR}/reap"
+chmod +x "${PROJECT_DIR}/yta" "${PROJECT_DIR}/sca" "${PROJECT_DIR}/reap" "${PROJECT_DIR}/reap-reset"
+ln -sfn "${PROJECT_DIR}/yta"        "${BIN_DIR}/yta"
+ln -sfn "${PROJECT_DIR}/sca"        "${BIN_DIR}/sca"
+ln -sfn "${PROJECT_DIR}/reap"       "${BIN_DIR}/reap"
+ln -sfn "${PROJECT_DIR}/reap-reset" "${BIN_DIR}/reap-reset"
 
-echo "Installed yta  -> ${PROJECT_DIR}/yta"
-echo "Installed sca  -> ${PROJECT_DIR}/sca"
-echo "Installed reap -> ${PROJECT_DIR}/reap"
-echo
-if [[ ":${PATH}:" != *":${BIN_DIR}:"* ]]; then
-  echo "Add this to your shell profile if commands are not found:"
-  echo "  export PATH=\"\${HOME}/.local/bin:\$PATH\""
+echo "Installed yta        -> ${PROJECT_DIR}/yta"
+echo "Installed sca        -> ${PROJECT_DIR}/sca"
+echo "Installed reap       -> ${PROJECT_DIR}/reap"
+echo "Installed reap-reset -> ${PROJECT_DIR}/reap-reset"
+
+# Add noglob aliases to .zshrc so URLs with ? don't break
+ZSHRC="${HOME}/.zshrc"
+MARKER="# audio-reaper"
+if [[ -f "$ZSHRC" ]] && ! grep -q "$MARKER" "$ZSHRC"; then
+  cat >> "$ZSHRC" <<'SHELL'
+
+# audio-reaper
+export PATH="${HOME}/.local/bin:$PATH"
+alias reap='noglob reap'
+alias yta='noglob yta'
+alias sca='noglob sca'
+SHELL
   echo
+  echo "Added PATH + noglob aliases to ~/.zshrc"
+  echo "Run: source ~/.zshrc   (or open a new terminal)"
+elif [[ -f "$ZSHRC" ]]; then
+  echo
+  echo "~/.zshrc already configured"
 fi
+
+echo
+echo "Optional: set GEMINI_API_KEY for smart search (refines vague queries):"
+echo "  echo 'export GEMINI_API_KEY=your-key' >> ~/.zshrc"
+echo "  Get a free key at https://aistudio.google.com/apikey"
+echo
 echo "Try:"
 echo "  reap https://youtu.be/... https://soundcloud.com/artist/track"
+echo "  reap \"michael jackson thriller\"    search and download"
 echo "  reap urls.txt"

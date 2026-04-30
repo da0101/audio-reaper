@@ -5,35 +5,93 @@
 # Usage:
 #   sca <url>                        single URL
 #   sca <url1> <url2> ...            multiple URLs
+#   sca "search query"               search SoundCloud and download
 #   sca urls.txt                     text file, one URL per line
-#   sca <url> --format flac          different format (mp3/m4a/wav/flac)
+#   sca --output ~/Music/beats       set download folder (persists)
+#   sca --format flac                different format (mp3/m4a/wav/flac)
 
 set -euo pipefail
 
+CONFIG_DIR="${HOME}/.config/audio-reaper"
+CONFIG_FILE="${CONFIG_DIR}/output_dir"
+DEFAULT_DIR="${HOME}/Downloads"
+
+OUT_DIR="$DEFAULT_DIR"
+[[ -f "$CONFIG_FILE" ]] && OUT_DIR="$(cat "$CONFIG_FILE")"
+
 FMT="mp3"
 URLS=()
+SEARCH_QUERIES=()
 BATCH=""
-OUT_DIR="${HOME}/Downloads"
+
+# Refine a search query using Gemini AI (optional, needs GEMINI_API_KEY)
+gemini_refine() {
+  local query="$1"
+  [[ -z "${GEMINI_API_KEY:-}" ]] && { echo "$query"; return; }
+
+  local body
+  body=$(python3 -c "
+import json, sys
+prompt = 'The user wants to find a song. Their query: \"' + sys.argv[1] + '\"\\nReturn ONLY the artist name and song title in the format: Artist - Song Title\\nNo explanation, no quotes, just the artist and title.'
+print(json.dumps({'contents': [{'parts': [{'text': prompt}]}]}))
+" "$query" 2>/dev/null) || { echo "$query"; return; }
+
+  local response
+  response=$(curl -sf --max-time 10 \
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}" \
+    -H "Content-Type: application/json" \
+    -d "$body" 2>/dev/null) || { echo "$query"; return; }
+
+  local refined
+  refined=$(python3 -c "
+import json, sys
+data = json.loads(sys.argv[1])
+print(data['candidates'][0]['content']['parts'][0]['text'].strip())
+" "$response" 2>/dev/null) || { echo "$query"; return; }
+
+  [[ -n "$refined" ]] && echo "$refined" || echo "$query"
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --format|-F) FMT="$2"; shift 2 ;;
-    -*)          echo "Unknown option: $1"; exit 1 ;;
+    --format|-F)  FMT="$2"; shift 2 ;;
+    --output|-o)
+      OUT_DIR="$2"
+      mkdir -p "$CONFIG_DIR"
+      echo "$OUT_DIR" > "$CONFIG_FILE"
+      shift 2 ;;
+    -*)           echo "Unknown option: $1"; exit 1 ;;
     *)
       if [[ -f "$1" ]]; then
         BATCH="$1"
-      else
+      elif [[ "$1" == http* ]]; then
         URLS+=("$1")
+      else
+        SEARCH_QUERIES+=("$1")
       fi
       shift ;;
   esac
 done
 
-if [[ -z "$BATCH" && ${#URLS[@]} -eq 0 ]]; then
-  echo "Usage: sca <url> [url2 ...] [--format mp3|m4a|wav|flac]"
-  echo "       sca urls.txt [--format mp3|m4a|wav|flac]"
+if [[ -z "$BATCH" && ${#URLS[@]} -eq 0 && ${#SEARCH_QUERIES[@]} -eq 0 ]]; then
+  echo "Usage: sca <url|query> [--format mp3|m4a|wav|flac] [--output ~/path]"
+  echo "       sca \"flume say it\"   search and download"
+  echo "       sca urls.txt"
+  echo
+  echo "  Current output: ${OUT_DIR}"
   exit 1
 fi
+
+# Process search queries
+for query in "${SEARCH_QUERIES[@]}"; do
+  refined=$(gemini_refine "$query")
+  if [[ "$refined" != "$query" ]]; then
+    echo "  Search: \"$query\" -> \"$refined\""
+  else
+    echo "  Search: \"$query\""
+  fi
+  URLS+=("scsearch1:${refined}")
+done
 
 mkdir -p "$OUT_DIR"
 
