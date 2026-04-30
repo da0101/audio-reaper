@@ -1,34 +1,61 @@
 #!/bin/bash
-# yta — download audio from a YouTube URL at 320 kbps
-# Usage: yta <url> [mp3|m4a|wav|flac]   (default: mp3)
+# yta — download audio from YouTube at 320 kbps
+#
+# Usage:
+#   yta <url>                        single URL
+#   yta <url1> <url2> ...            multiple URLs
+#   yta urls.txt                     text file, one URL per line
+#   yta <url> --format flac          different format (mp3/m4a/wav/flac)
 
 set -euo pipefail
 
-URL="${1:-}"
-FMT="${2:-mp3}"
+FMT="mp3"
+URLS=()
+BATCH=""
 OUT_DIR="${HOME}/Downloads"
 
-if [[ -z "$URL" ]]; then
-  echo "Usage: yta <youtube-url> [mp3|m4a|wav|flac]"
-  echo "       yta https://youtu.be/..."
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --format|-F) FMT="$2"; shift 2 ;;
+    -*)          echo "Unknown option: $1"; exit 1 ;;
+    *)
+      if [[ -f "$1" ]]; then
+        BATCH="$1"
+      else
+        URLS+=("$1")
+      fi
+      shift ;;
+  esac
+done
+
+if [[ -z "$BATCH" && ${#URLS[@]} -eq 0 ]]; then
+  echo "Usage: yta <url> [url2 ...] [--format mp3|m4a|wav|flac]"
+  echo "       yta urls.txt [--format mp3|m4a|wav|flac]"
   exit 1
 fi
 
 mkdir -p "$OUT_DIR"
 
-echo "  Downloading audio → ${OUT_DIR}"
+COUNT=$([ -n "$BATCH" ] && grep -c "^https" "$BATCH" || echo "${#URLS[@]}")
+echo "  Downloading ${COUNT} track(s) → ${OUT_DIR}"
 echo "  Format: ${FMT}  |  Quality: 320 kbps"
 echo
 
-yt-dlp \
-  --extract-audio \
-  --audio-format "$FMT" \
-  --audio-quality 320K \
-  --embed-thumbnail \
-  --embed-metadata \
-  --output "${OUT_DIR}/%(title)s.%(ext)s" \
-  --progress \
-  "$URL"
+COMMON_ARGS=(
+  --extract-audio
+  --audio-format "$FMT"
+  --audio-quality 320K
+  --embed-thumbnail
+  --embed-metadata
+  --output "${OUT_DIR}/%(title)s.%(ext)s"
+  --progress
+)
+
+if [[ -n "$BATCH" ]]; then
+  yt-dlp "${COMMON_ARGS[@]}" --batch-file "$BATCH"
+else
+  yt-dlp "${COMMON_ARGS[@]}" "${URLS[@]}"
+fi
 
 echo
 echo "  Done. Saved to ${OUT_DIR}"

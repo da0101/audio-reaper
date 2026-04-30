@@ -1,0 +1,105 @@
+#!/bin/bash
+# reap — smart audio downloader, routes YouTube and SoundCloud URLs automatically
+#
+# Usage:
+#   reap <url>                       single URL
+#   reap <url1> <url2> ...           mixed list of YouTube + SoundCloud URLs
+#   reap urls.txt                    text file, one URL per line
+#   reap urls.txt --format flac      different format (mp3/m4a/wav/flac)
+
+set -euo pipefail
+
+FMT="mp3"
+URLS=()
+OUT_DIR="${HOME}/Downloads"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --format|-F) FMT="$2"; shift 2 ;;
+    -*)          echo "Unknown option: $1"; exit 1 ;;
+    *)
+      if [[ -f "$1" ]]; then
+        while IFS= read -r line; do
+          [[ -z "$line" || "$line" == \#* ]] && continue
+          URLS+=("$line")
+        done < "$1"
+      else
+        URLS+=("$1")
+      fi
+      shift ;;
+  esac
+done
+
+if [[ ${#URLS[@]} -eq 0 ]]; then
+  echo "Usage: reap <url> [url2 ...] [--format mp3|m4a|wav|flac]"
+  echo "       reap urls.txt [--format mp3|m4a|wav|flac]"
+  exit 1
+fi
+
+# Route URLs by source
+YT_URLS=()
+SC_URLS=()
+OTHER_URLS=()
+
+for url in "${URLS[@]}"; do
+  if [[ "$url" =~ youtube\.com|youtu\.be ]]; then
+    YT_URLS+=("$url")
+  elif [[ "$url" =~ soundcloud\.com ]]; then
+    SC_URLS+=("$url")
+  else
+    OTHER_URLS+=("$url")
+  fi
+done
+
+echo "  Found ${#URLS[@]} URL(s): ${#YT_URLS[@]} YouTube, ${#SC_URLS[@]} SoundCloud, ${#OTHER_URLS[@]} other"
+echo "  Format: ${FMT}  |  Output: ${OUT_DIR}"
+echo
+
+mkdir -p "$OUT_DIR"
+
+# Download YouTube — 320 kbps
+if [[ ${#YT_URLS[@]} -gt 0 ]]; then
+  echo "  [YouTube] Downloading ${#YT_URLS[@]} track(s) at 320 kbps..."
+  yt-dlp \
+    --extract-audio \
+    --audio-format "$FMT" \
+    --audio-quality 320K \
+    --embed-thumbnail \
+    --embed-metadata \
+    --output "${OUT_DIR}/%(title)s.%(ext)s" \
+    --progress \
+    "${YT_URLS[@]}"
+  echo
+fi
+
+# Download SoundCloud — best available
+if [[ ${#SC_URLS[@]} -gt 0 ]]; then
+  echo "  [SoundCloud] Downloading ${#SC_URLS[@]} track(s) at best available quality..."
+  yt-dlp \
+    --extract-audio \
+    --audio-format "$FMT" \
+    --audio-quality 0 \
+    --embed-thumbnail \
+    --embed-metadata \
+    --output "${OUT_DIR}/%(uploader)s - %(title)s.%(ext)s" \
+    --progress \
+    "${SC_URLS[@]}"
+  echo
+fi
+
+# Download anything else — best available
+if [[ ${#OTHER_URLS[@]} -gt 0 ]]; then
+  echo "  [Other] Downloading ${#OTHER_URLS[@]} track(s)..."
+  yt-dlp \
+    --extract-audio \
+    --audio-format "$FMT" \
+    --audio-quality 0 \
+    --embed-thumbnail \
+    --embed-metadata \
+    --output "${OUT_DIR}/%(uploader)s - %(title)s.%(ext)s" \
+    --progress \
+    "${OTHER_URLS[@]}"
+  echo
+fi
+
+echo "  Done. Saved to ${OUT_DIR}"

@@ -21,18 +21,20 @@ done
 
 echo
 mkdir -p "$BIN_DIR"
-chmod +x "${PROJECT_DIR}/yta" "${PROJECT_DIR}/sca"
-ln -sfn "${PROJECT_DIR}/yta" "${BIN_DIR}/yta"
-ln -sfn "${PROJECT_DIR}/sca" "${BIN_DIR}/sca"
+chmod +x "${PROJECT_DIR}/yta" "${PROJECT_DIR}/sca" "${PROJECT_DIR}/reap"
+ln -sfn "${PROJECT_DIR}/yta"  "${BIN_DIR}/yta"
+ln -sfn "${PROJECT_DIR}/sca"  "${BIN_DIR}/sca"
+ln -sfn "${PROJECT_DIR}/reap" "${BIN_DIR}/reap"
 
-echo "Installed yta -> ${PROJECT_DIR}/yta"
-echo "Installed sca -> ${PROJECT_DIR}/sca"
+echo "Installed yta  -> ${PROJECT_DIR}/yta"
+echo "Installed sca  -> ${PROJECT_DIR}/sca"
+echo "Installed reap -> ${PROJECT_DIR}/reap"
 echo
 if [[ ":${PATH}:" != *":${BIN_DIR}:"* ]]; then
   echo "Add this to your shell profile if commands are not found:"
-  echo "  export PATH=\"${BIN_DIR}:\$PATH\""
+  echo "  export PATH=\"\${HOME}/.local/bin:\$PATH\""
   echo
 fi
 echo "Try:"
-echo "  yta https://youtu.be/..."
-echo "  sca https://soundcloud.com/artist/track"
+echo "  reap https://youtu.be/... https://soundcloud.com/artist/track"
+echo "  reap urls.txt"
