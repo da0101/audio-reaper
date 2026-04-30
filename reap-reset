@@ -1,0 +1,13 @@
+#!/bin/bash
+# reap-reset — reset download folder back to ~/Downloads
+set -euo pipefail
+
+CONFIG_FILE="${HOME}/.config/audio-reaper/output_dir"
+
+if [[ -f "$CONFIG_FILE" ]]; then
+  OLD="$(cat "$CONFIG_FILE")"
+  rm "$CONFIG_FILE"
+  echo "  Reset: ${OLD} → ~/Downloads"
+else
+  echo "  Already using default: ~/Downloads"
+fi
