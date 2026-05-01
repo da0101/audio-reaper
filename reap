@@ -86,15 +86,17 @@ if [[ ${#URLS[@]} -eq 0 && ${#SEARCH_QUERIES[@]} -eq 0 ]]; then
 fi
 
 # Process search queries
-for query in "${SEARCH_QUERIES[@]}"; do
-  refined=$(gemini_refine "$query")
-  if [[ "$refined" != "$query" ]]; then
-    echo "  Search: \"$query\" -> \"$refined\""
-  else
-    echo "  Search: \"$query\""
-  fi
-  URLS+=("ytsearch1:${refined}")
-done
+if [[ ${#SEARCH_QUERIES[@]} -gt 0 ]]; then
+  for query in "${SEARCH_QUERIES[@]}"; do
+    refined=$(gemini_refine "$query")
+    if [[ "$refined" != "$query" ]]; then
+      echo "  Search: \"$query\" -> \"$refined\""
+    else
+      echo "  Search: \"$query\""
+    fi
+    URLS+=("ytsearch1:${refined}")
+  done
+fi
 
 # Route URLs by source
 YT_URLS=()
